@@ -1,7 +1,8 @@
 from app import app
 from flask import request
+from datetime import datetime
 
-reading = 0
+readings = []
 
 @app.route('/')
 @app.route('/index')
@@ -10,12 +11,12 @@ def index():
 
 @app.route('/upload')
 def upload():
-   global reading
    reading = request.args.get('reading')
+   readings.append({reading, datetime.now().isoformat()})
    print("set reading: {0}".format(reading))
    return ""
 
 @app.route('/read')
 def read():
-   print("requested reading")
-   return str(reading)
+   print("requested readings")
+   return str(readings)
