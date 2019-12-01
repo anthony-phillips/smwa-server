@@ -1,4 +1,6 @@
 from app import app
+import numpy as np
+from scipy.integrate import trapz
 from flask import request
 from datetime import datetime
 
@@ -12,11 +14,19 @@ def index():
 @app.route('/upload')
 def upload():
    reading = request.args.get('reading')
-   readings.append({reading, datetime.now().isoformat()})
-   print("set reading: {0}".format(reading))
+   readings.append([float(reading), datetime.now().timestamp()])
    return ""
 
-@app.route('/read')
-def read():
-   print("requested readings")
+@app.route('/read/now')
+def read_now():
+   return str(readings)
+
+@app.route('/analytics/consumption')
+def analytics_consumption():
+   consumption = trapz([reading[0] for reading in readings],
+                       [reading[1] for reading in readings])
+   return str(consumption / 3600) # 3600 WS in a WH
+
+@app.route('/analytics/prediction')
+def analytics_prediction():
    return str(readings)
