@@ -23,7 +23,7 @@
          function onRefresh(chart) {
             dataset = chart.config.data.datasets[0]
 
-            fetch('http://192.168.137.50/read/now')
+            fetch('http://192.168.137.1/read/now')
             .then(response => {
                return response.json()
             })
