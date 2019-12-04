@@ -2,9 +2,10 @@ from app import app
 import numpy as np
 from scipy.integrate import trapz
 from scipy.stats import linregress
-from flask import request
+from flask import request, render_template
 from datetime import datetime
 import math
+import json
 
 readings = []
 
@@ -13,7 +14,7 @@ date_format = '%d%m%y%H%M%S'
 @app.route('/')
 @app.route('/index')
 def index():
-   return "suh dawg!"
+   return render_template('index.html')
 
 @app.route('/upload')
 def upload():
@@ -23,7 +24,9 @@ def upload():
 
 @app.route('/read/now')
 def read_now():
-   return str(readings[-1])
+   now = readings[-1]
+   now_date = datetime.fromtimestamp(now[1]).isoformat()
+   return '{{"reading":{0},"date":"{1}"}}'.format(now[0], now_date)
 
 @app.route('/read/all')
 def read_all():

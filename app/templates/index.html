@@ -1,0 +1,145 @@
+<html>
+   <head>
+      <title>SMWA</title>
+ 
+      <script src="https://cdn.jsdelivr.net/npm/moment@2.24.0/min/moment.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0"></script>
+      <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-streaming@1.8.0"></script>
+      <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@0.5.7/chartjs-plugin-annotation.min.js"></script>
+      <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+      
+      <script>
+         var chartColors = {
+            red: 'rgb(255, 99, 132)',
+            orange: 'rgb(255, 159, 64)',
+            yellow: 'rgb(255, 205, 86)',
+            green: 'rgb(75, 192, 192)',
+            blue: 'rgb(54, 162, 235)',
+            purple: 'rgb(153, 102, 255)',
+            grey: 'rgb(201, 203, 207)',
+            black: 'rgb(0, 0, 0)'
+         };
+
+         function onRefresh(chart) {
+            dataset = chart.config.data.datasets[0]
+
+            fetch('http://192.168.137.50/read/now')
+            .then(response => {
+               return response.json()
+            })
+            .then(data => {
+               dataPoint = {
+                  x: data.date,
+                  y: data.reading
+               };
+
+               if (!dataset.data.filter(reading => (reading.y === dataPoint.y)).length) {
+                  dataset.data.push(dataPoint);
+                  annotation = realtimeChart.options.annotation.annotations[0];
+                  annotation.value = dataPoint.y;
+                  annotation.label.content = Math.round(dataPoint.y) + ' W';
+                  realtimeChart.update();
+               }
+            })
+         }
+
+         var color = Chart.helpers.color;
+         var config = {
+            type: 'line',
+            data: {
+               datasets: [{
+                  backgroundColor: color(chartColors.green).alpha(0.5).rgbString(),
+                  borderColor: chartColors.green,
+                  fill: true,
+                  data: []
+               }]
+            },
+            options: {
+               title: {
+                  display: true,
+                  text: 'Realtime Power Usage'
+               },
+               scales: {
+                  xAxes: [{
+                     type: 'realtime',
+                     distribution: 'series',
+                     realtime: {
+                        duration: 120000,
+                        refresh: 4000,
+                        delay: 8005,
+                        onRefresh: onRefresh
+                     },
+                     time: {
+                        unit: 'second',
+                        displayFormats: {
+                           second: 'ss',
+                           minute: 'H:mm'
+                        }
+                     }
+                  }],
+                  yAxes: [{
+                     scaleLabel: {
+                        display: false,
+                        labelString: 'Power'
+                     }
+                  }]
+               },
+               legend: {
+                  display: false
+               },
+               tooltips: {
+                  mode: 'nearest',
+                  intersect: false,
+                  callbacks: {
+                     title: function(tooltipItem, data) {
+                        return Math.round(tooltipItem[0].value) + ' W';
+                     },
+                     label: function(tooltipItem, data) {
+                        var date = moment(tooltipItem.label);
+                        return date.format('H:mm:ss');
+                     }
+                  },
+                  displayColors: false,
+                  backgroundColor: color(chartColors.black).alpha(0.8).rgbString()
+               },
+               hover: {
+                  mode: 'nearest',
+                  intersect: false
+               },
+               annotation: {
+                  annotations: [
+                     {
+                        type: 'line',
+                        mode: 'horizontal',
+                        scaleID: 'y-axis-0',
+                        borderColor: color(chartColors.black).alpha(0.8).rgbString(),
+                        borderWidth: 3,
+                        value: 0,
+                        label: {
+                           content: '0 W',
+                           enabled: true,
+                           fontSize: 18
+                        }
+                     }
+                  ]
+               }
+            }
+         };
+
+         window.onload = function() {
+            var ctx = document.getElementById('realtimeChart').getContext('2d');
+            Chart.defaults.global.defaultFontSize = 16;
+            Chart.defaults.global.defaultFontColor = '(0,0,0,0.8)';
+            window.realtimeChart = new Chart(ctx, config);
+         };
+
+         var colorNames = Object.keys(chartColors);
+
+      </script>
+   </head>
+   <body>
+      <div>
+         <canvas id="realtimeChart"></canvas>
+      </div>
+   </body>
+</html>
