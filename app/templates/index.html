@@ -161,7 +161,7 @@
                maintainAspectRatio: false,
                title: {
                   display: true,
-                  text: 'Energy Consumption',
+                  text: 'Historical Usage',
                   fontSize: 18
                },
                scales: {
@@ -203,6 +203,23 @@
                   displayColors: false,
                   backgroundColor: color(chartColors.black).alpha(0.8).rgbString()
                },
+               annotation: {
+                  annotations: [
+                     {
+                        type: 'line',
+                        mode: 'horizontal',
+                        scaleID: 'y-axis-0',
+                        borderColor: 'rgba(0,0,0,0)',
+                        borderWidth: 3,
+                        value: 1000,
+                        label: {
+                           content: '0 kWH',
+                           enabled: true,
+                           fontSize: 18
+                        }
+                     }
+                  ]
+               },
                hover: {
                   mode: 'nearest',
                   intersect: false
@@ -213,7 +230,123 @@
             }
          };
 
-         
+         var predictConfig = {
+            type: 'line',
+            data: {
+               datasets: [
+               {
+                  label: 'Predicted',
+                  backgroundColor: color(chartColors.black).alpha(0.5).rgbString(),
+                  borderColor: chartColors.black,
+                  borderWidth: 2,
+                  borderDash: [4,7],
+                  pointRadius: 0,
+                  fill: false,
+                  data: []
+               },
+               {
+                  label: 'Actual',
+                  backgroundColor: color(chartColors.red).alpha(0.5).rgbString(),
+                  borderColor: chartColors.red,
+                  borderWidth: 2,
+                  pointRadius: 0,
+                  fill: true,
+                  data: []
+               },]
+            },
+            options: {
+               responsive: false,
+               maintainAspectRatio: false,
+               title: {
+                  display: true,
+                  text: 'Predicted vs Actual Usage',
+                  fontSize: 18
+               },
+               scales: {
+                  xAxes: [{
+                     type: 'time',
+                     distribution: 'linear',
+                     time: {
+                        displayFormats: {
+                           second: 'H:mm:ss',
+                           minute: 'H:mm',
+                           hour: 'H'
+                        }
+                     }
+                  }],
+                  yAxes: [{
+                     scaleLabel: {
+                        display: false,
+                        labelString: 'Power'
+                     }
+                  }]
+               },
+               legend: {
+                  display: true,
+                  position: 'bottom'
+               },
+               tooltips: {
+                  mode: 'nearest',
+                  intersect: false,
+                  callbacks: {
+                     title: function(tooltipItem, data) {
+                        return Math.round(tooltipItem[0].value) + ' W';
+                     },
+                     label: function(tooltipItem, data) {
+                        var date = moment(tooltipItem.label);
+                        return date.format('H:mm:ss');
+                     }
+                  },
+                  displayColors: false,
+                  backgroundColor: color(chartColors.black).alpha(0.8).rgbString()
+               },
+               annotation: {
+                  annotations: [
+                     {
+                        type: 'line',
+                        mode: 'horizontal',
+                        scaleID: 'y-axis-0',
+                        borderColor: 'rgba(0,0,0,0)',
+                        borderWidth: 3,
+                        value: 1000,
+                        label: {
+                           content: '0 kWH',
+                           enabled: true,
+                           fontSize: 18,
+                           position: 'right',
+                           xAdjust: 200
+                        }
+                     },
+                     {
+                        type: 'line',
+                        mode: 'horizontal',
+                        scaleID: 'y-axis-0',
+                        borderColor: 'rgba(0,0,0,0)',
+                        borderWidth: 3,
+                        value: 1000,
+                        label: {
+                           content: '0 kWH',
+                           enabled: true,
+                           fontSize: 18,
+                           position: 'left',
+                           xAdjust: 200,
+                           backgroundColor: chartColors.red
+                        }
+                     }
+                  ]
+               },
+               hover: {
+                  mode: 'nearest',
+                  intersect: false
+               },
+               plugins: {
+                  streaming: false
+               }
+            }
+         };
+
+         var endTime = 0;
+
          window.onload = function() {
             Chart.defaults.global.defaultFontSize = 16;
             Chart.defaults.global.defaultFontColor = 'rgba(0,0,0,0.8)';
@@ -221,47 +354,71 @@
             var realtimeCtx = document.getElementById('realtimeChart').getContext('2d');
             window.realtimeChart = new Chart(realtimeCtx, realtimeConfig);
 
+            var predictCtx = document.getElementById('predictChart').getContext('2d');
+            window.predictChart = new Chart(predictCtx, predictConfig);
+
             var historicalCtx = document.getElementById('historicalChart').getContext('2d');
             window.historicalChart = new Chart(historicalCtx, historicalConfig);
             
-            fetch('http://192.168.137.1/read')
-            .then(response => {
-               return response.json()
-            })
-            .then(data => {
-
-               var newData = new Array();
-               
-               data.readings.forEach(function(reading){
-                  dataPoint = {
-                     x: reading.date,
-                     y: reading.read
-                  };
-                  newData.push(dataPoint);
-               });
-
-               historicalDataset = historicalChart.data.datasets[0];
-               realtimeDataset = realtimeChart.data.datasets[0];
-
-               var currentReading = newData[newData.length-1];
-               annotation = realtimeChart.options.annotation.annotations[0];
-               annotation.value = currentReading.y;
-               annotation.label.content = Math.round(currentReading.y) + ' W';
-               realtimeDataset.data = newData;
-               realtimeChart.update();
-               
-               Object.assign(historicalDataset.data, newData);
-               historicalChart.update();
-               
-               document.getElementById("consumStart").value = 
-                     moment(newData[0].x).format(inputDateFormat);
-               document.getElementById("consumEnd").value = 
-                     moment(currentReading.x).format(inputDateFormat);
-            })
-
             var colorNames = Object.keys(chartColors);
 
-            document.getElementById('consumCalc').addEventListener('click', evt => {
+            function predictVsActual() {
+               const nowTime = moment().toISOString();
+
+               fetch(`http://192.168.137.1/analytics/prediction?end=${endTime}`)
+               .then(response => {
+                  return response.json()
+               })
+               .then(data => {
+                  const kWH = (data / 1000).toFixed(2);
+                  dataPoint = {
+                     x: nowTime,
+                     y: data
+                  };
+
+                  predictDataset = predictChart.data.datasets[0];
+                  predictDataset.data.push(dataPoint);
+
+                  var annotation = predictChart.options.annotation.annotations[0];
+                  annotation.value = data;
+                  annotation.label.content = kWH + ' kWH';
+
+                  predictChart.update();
+               })
+               
+               fetch(`http://192.168.137.1/analytics/consumption`)
+               .then(response => {
+                  return response.json()
+               })
+               .then(data => {
+                  const kWH = (data / 1000).toFixed(2);
+                  dataPoint = {
+                     x: nowTime,
+                     y: data
+                  };
+
+                  predictDataset = predictChart.data.datasets[1];
+                  predictDataset.data.push(dataPoint);
+
+                  var annotation = predictChart.options.annotation.annotations[1];
+                  annotation.value = data;
+                  annotation.label.content = kWH + ' kWH';
+
+                  predictChart.update();
+               })
+            }
+
+            function predictCalc_click() {
+               endTime = document.getElementById('predictEnd').value;
+               endTime = moment(endTime, inputDateFormat).format(serverDateFormat);
+               predictDataset = predictChart.data.datasets[0];
+               predictDataset.data = [];
+               predictVsActual();
+            }
+
+            document.getElementById('predictCalc').addEventListener('click', predictCalc_click);
+
+            function consumptionCalc() {
                var startTime = document.getElementById('consumStart').value;
                var endTime = document.getElementById('consumEnd').value;
 
@@ -287,82 +444,96 @@
                   historicalDataset = historicalChart.data.datasets[0];
                   historicalDataset.data = newData;
                   historicalChart.update();
+                  return;
                })
-            });
+               .then(function(){
+                  fetch(`http://192.168.137.1/analytics/consumption?start=${startTime}&end=${endTime}`)
+                  .then(response => {
+                     return response.json()
+                  })
+                  .then(data => {
+                     const kWH = (data / 1000).toFixed(2);
+                     var yMax = historicalChart.scales['y-axis-0'].max;
+                     var annotation = historicalChart.options.annotation.annotations[0];
+                     annotation.value = yMax / 2;
+                     annotation.label.content = kWH + ' kWH';
+                     historicalChart.update();
+                  })
+               })
+            }
 
-            /*//https://stackoverflow.com/a/46282218
-            var canvas = document.getElementById('historicalChart');
+            document.getElementById('consumCalc').addEventListener('click', consumptionCalc);
+            fetch('http://192.168.137.1/read')
+            .then(response => {
+               return response.json()
+            })
+            .then(data => {
 
-            var overlay = document.getElementById('overlay');
-            overlay.width = canvas.width;
-            overlay.height = canvas.height;
-            
-            var selectionContext = overlay.getContext('2d');
-            var selectionRect = {
-               w: 0,
-               startX: 0,
-               startY: 0
-            };
-            var startIndex = 0;
-            var drag = false;
-
-            canvas.addEventListener('pointerdown', evt => {
-               const points = historicalChart.getElementsAtEventForMode(evt, 'index', {
-                  intersect: false
+               var newData = new Array();
+               
+               data.readings.forEach(function(reading){
+                  dataPoint = {
+                     x: reading.date,
+                     y: reading.read
+                  };
+                  newData.push(dataPoint);
                });
-               startIndex = points[0]._index;
-               const rect = canvas.getBoundingClientRect();
-               selectionRect.startX = evt.clientX - rect.left;
-               selectionRect.startY = historicalChart.chartArea.top;
-               drag = true;
-               // save points[0]._index for filtering
-            });
 
-            canvas.addEventListener('pointermove', evt => {
-               const rect = canvas.getBoundingClientRect();
-               if (drag) {
-                  const rect = canvas.getBoundingClientRect();
-                  selectionRect.w = (evt.clientX - rect.left) - selectionRect.startX;
-                  selectionContext.globalAlpha = 0.5;
-                  selectionContext.clearRect(0, 0, canvas.width, canvas.height);
-                  selectionContext.fillRect(selectionRect.startX,
-                     selectionRect.startY,
-                     selectionRect.w,
-                     historicalChart.chartArea.bottom - historicalChart.chartArea.top);
-               } else {
-                  selectionContext.clearRect(0, 0, canvas.width, canvas.height);
-                  var x = evt.clientX - rect.left;
-                  if (x > historicalChart.chartArea.left) {
-                     selectionContext.fillRect(x,
-                     historicalChart.chartArea.top,
-                     1,
-                     historicalChart.chartArea.bottom - historicalChart.chartArea.top);
-                  }
-               }
-            });
+               historicalDataset = historicalChart.data.datasets[0];
+               realtimeDataset = realtimeChart.data.datasets[0];
 
-            canvas.addEventListener('pointerup', evt => {
-               const points = historicalChart.getElementsAtEventForMode(evt, 'index', {
-                  intersect: false
-               });
-               drag = false;
-               start = historicalChart.data.datasets[0].data[startIndex].x;
-               end = historicalChart.data.datasets[0].data[points[0]._index].x;
-            });*/
+               var currentReading = newData[newData.length-1];
+               var annotation = realtimeChart.options.annotation.annotations[0];
+               annotation.value = currentReading.y;
+               annotation.label.content = Math.round(currentReading.y) + ' W';
+               realtimeDataset.data = newData;
+               realtimeChart.update();
+               
+               fetch(`http://192.168.137.1/analytics/consumption`)
+               .then(response => {
+                  return response.json()
+               })
+               .then(data => {
+                  const kWH = (data / 1000).toFixed(2);
+                  var yMax = historicalChart.scales['y-axis-0'].max;
+                  var annotation = historicalChart.options.annotation.annotations[0];
+                  annotation.value = yMax / 2;
+                  annotation.label.content = kWH + ' kWH';
+                  historicalChart.update();
+               })
+
+               Object.assign(historicalDataset.data, newData);
+               historicalChart.update();
+               
+               document.getElementById('consumStart').value = 
+                     moment(newData[0].x).format(inputDateFormat);
+               document.getElementById('consumEnd').value = 
+                     moment(currentReading.x).format(inputDateFormat);
+               document.getElementById('predictEnd').value = moment(currentReading.x).add(1, 'hour').format(inputDateFormat);
+               predictCalc_click();
+            })
+            setInterval(predictVsActual, 10000);
          };
       </script>
    </head>
    <body style="font-family: Arial, Helvetica, sans-serif;">
       <div style="margin:auto;width:750px!important;">
-         <canvas id="realtimeChart" style="height:350px!important;"></canvas>
-         <!--<canvas id="overlay" style="position:absolute;pointer-events:none;"></canvas>-->
-         <canvas id="historicalChart" style="height:350px!important;"></canvas>
+         <canvas id="realtimeChart" style="height:275px!important;width:750px!important;"></canvas>
+         <hr>
+         <canvas id="predictChart" style="height:275px!important;width:750px!important;"></canvas>
          <div style="text-align: center;">
-            <input id="consumCalc" type="button" style="font-family: Arial, Helvetica, sans-serif; font-size: medium;" value="Calculate"/>
+               <span><b>For</b></span>
+               <input id="predictEnd" type="datetime-local" style="font-family: Arial, Helvetica, sans-serif; font-size: medium;"/>
+               <input id="predictCalc" type="button" style="font-family: Arial, Helvetica, sans-serif; font-size: medium;" value="Predict"/>
+         </div>
+         <hr>
+         <canvas id="historicalChart" style="height:275px!important;width:750px!important;"></canvas>
+         <div style="text-align: center;">
             <span><b>From</b></span>
             <input id="consumStart" type="datetime-local" style="font-family: Arial, Helvetica, sans-serif; font-size: medium;"/>
             <span><b>To</b></span>
             <input id="consumEnd" type="datetime-local" style="font-family: Arial, Helvetica, sans-serif; font-size: medium;"/>
+            <input id="consumCalc" type="button" style="font-family: Arial, Helvetica, sans-serif; font-size: medium;" value="Calculate"/>
          </div>
       </div>         
    </body>
