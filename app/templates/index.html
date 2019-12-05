@@ -31,6 +31,7 @@
 
          const inputDateFormat = 'YYYY-MM-DDTHH:mm:ss';
          const serverDateFormat = 'DDMMYYHHmmss';
+         const perWH = 0.00012;
 
          function onRefresh(historicalChart) {
             dataset = historicalChart.data.datasets[0]
@@ -97,7 +98,7 @@
                         suggestedMin: 0
                      },
                      scaleLabel: {
-                        display: false,
+                        display: true,
                         labelString: 'Power'
                      }
                   }]
@@ -180,7 +181,7 @@
                         suggestedMin: 0
                      },
                      scaleLabel: {
-                        display: false,
+                        display: true,
                         labelString: 'Power'
                      }
                   }]
@@ -236,7 +237,7 @@
                datasets: [
                {
                   label: 'Predicted',
-                  backgroundColor: color(chartColors.black).alpha(0.5).rgbString(),
+                  backgroundColor: 'rgba(0,0,0,0)',
                   borderColor: chartColors.black,
                   borderWidth: 2,
                   borderDash: [4,7],
@@ -266,18 +267,25 @@
                   xAxes: [{
                      type: 'time',
                      distribution: 'linear',
+                     ticks: {
+                        stepSize: 30
+                     },
                      time: {
+                        unit: 'second',
                         displayFormats: {
-                           second: 'H:mm:ss',
-                           minute: 'H:mm',
-                           hour: 'H'
+                           millisecond: 'SS',
+                           second: 'ss',
+                           minute: 'H:mm'
                         }
-                     }
+                     },
                   }],
                   yAxes: [{
+                     ticks: {
+                        suggestedMin: 0
+                     },
                      scaleLabel: {
-                        display: false,
-                        labelString: 'Power'
+                        display: true,
+                        labelString: 'Energy'
                      }
                   }]
                },
@@ -290,7 +298,7 @@
                   intersect: false,
                   callbacks: {
                      title: function(tooltipItem, data) {
-                        return Math.round(tooltipItem[0].value) + ' W';
+                        return tooltipItem[0].value + ' kWH';
                      },
                      label: function(tooltipItem, data) {
                         var date = moment(tooltipItem.label);
@@ -301,6 +309,7 @@
                   backgroundColor: color(chartColors.black).alpha(0.8).rgbString()
                },
                annotation: {
+                  drawTime: 'afterDraw',
                   annotations: [
                      {
                         type: 'line',
@@ -314,7 +323,7 @@
                            enabled: true,
                            fontSize: 18,
                            position: 'right',
-                           xAdjust: 200
+                           xAdjust: 75
                         }
                      },
                      {
@@ -329,7 +338,7 @@
                            enabled: true,
                            fontSize: 18,
                            position: 'left',
-                           xAdjust: 200,
+                           xAdjust: 75,
                            backgroundColor: chartColors.red
                         }
                      }
@@ -363,7 +372,7 @@
             var colorNames = Object.keys(chartColors);
 
             function predictVsActual() {
-               const nowTime = moment().toISOString();
+               const nowTime = moment().startOf('second').toISOString();
 
                fetch(`http://192.168.137.1/analytics/prediction?end=${endTime}`)
                .then(response => {
@@ -373,15 +382,16 @@
                   const kWH = (data / 1000).toFixed(2);
                   dataPoint = {
                      x: nowTime,
-                     y: data
+                     y: kWH
                   };
 
                   predictDataset = predictChart.data.datasets[0];
                   predictDataset.data.push(dataPoint);
 
+                  const cost = (data * perWH).toFixed(2);
                   var annotation = predictChart.options.annotation.annotations[0];
-                  annotation.value = data;
-                  annotation.label.content = kWH + ' kWH';
+                  annotation.value = kWH;
+                  annotation.label.content = kWH + ' kWH | $' + cost;
 
                   predictChart.update();
                })
@@ -394,15 +404,16 @@
                   const kWH = (data / 1000).toFixed(2);
                   dataPoint = {
                      x: nowTime,
-                     y: data
+                     y: kWH
                   };
 
                   predictDataset = predictChart.data.datasets[1];
                   predictDataset.data.push(dataPoint);
 
+                  const cost = (data * perWH).toFixed(2);
                   var annotation = predictChart.options.annotation.annotations[1];
-                  annotation.value = data;
-                  annotation.label.content = kWH + ' kWH';
+                  annotation.value = kWH;
+                  annotation.label.content = kWH + ' kWH | $' + cost;
 
                   predictChart.update();
                })
@@ -453,10 +464,11 @@
                   })
                   .then(data => {
                      const kWH = (data / 1000).toFixed(2);
+                     const cost = (data * perWH).toFixed(2);
                      var yMax = historicalChart.scales['y-axis-0'].max;
                      var annotation = historicalChart.options.annotation.annotations[0];
                      annotation.value = yMax / 2;
-                     annotation.label.content = kWH + ' kWH';
+                     annotation.label.content = kWH + ' kWH | $' + cost;
                      historicalChart.update();
                   })
                })
@@ -495,10 +507,11 @@
                })
                .then(data => {
                   const kWH = (data / 1000).toFixed(2);
+                  const cost = (data * perWH).toFixed(2);
                   var yMax = historicalChart.scales['y-axis-0'].max;
                   var annotation = historicalChart.options.annotation.annotations[0];
                   annotation.value = yMax / 2;
-                  annotation.label.content = kWH + ' kWH';
+                  annotation.label.content = kWH + ' kWH | $' + cost;
                   historicalChart.update();
                })
 
