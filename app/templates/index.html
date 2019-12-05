@@ -2,13 +2,22 @@
    <head>
       <title>SMWA</title>
  
+      <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+      <script src=https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.bundle.min.js></script>
       <script src="https://cdn.jsdelivr.net/npm/moment@2.24.0/min/moment.min.js"></script>
       <script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0"></script>
       <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-streaming@1.8.0"></script>
       <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@0.5.7/chartjs-plugin-annotation.min.js"></script>
-      <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/tempusdominus-bootstrap-4/5.0.0-alpha14/js/tempusdominus-bootstrap-4.min.js"></script>
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tempusdominus-bootstrap-4/5.0.0-alpha14/css/tempusdominus-bootstrap-4.min.css" />
+
       
       <script>
+         /* They say never judge a book by its cover.
+            One should also never judge a person by the JavaScript 
+            they write the night before a senior design expo.
+         */
+
          var chartColors = {
             red: 'rgb(255, 99, 132)',
             orange: 'rgb(255, 159, 64)',
@@ -20,8 +29,11 @@
             black: 'rgb(0, 0, 0)'
          };
 
-         function onRefresh(chart) {
-            dataset = chart.config.data.datasets[0]
+         const inputDateFormat = 'YYYY-MM-DDTHH:mm:ss';
+         const serverDateFormat = 'DDMMYYHHmmss';
+
+         function onRefresh(historicalChart) {
+            dataset = historicalChart.data.datasets[0]
 
             fetch('http://192.168.137.1/read/now')
             .then(response => {
@@ -30,10 +42,10 @@
             .then(data => {
                dataPoint = {
                   x: data.date,
-                  y: data.reading
+                  y: data.read
                };
 
-               if (!dataset.data.filter(reading => (reading.y === dataPoint.y)).length) {
+               if (!dataset.data.filter(read => (read.y === dataPoint.y)).length) {
                   dataset.data.push(dataPoint);
                   annotation = realtimeChart.options.annotation.annotations[0];
                   annotation.value = dataPoint.y;
@@ -44,25 +56,28 @@
          }
 
          var color = Chart.helpers.color;
-         var config = {
+         var realtimeConfig = {
             type: 'line',
             data: {
                datasets: [{
-                  backgroundColor: color(chartColors.green).alpha(0.5).rgbString(),
-                  borderColor: chartColors.green,
+                  backgroundColor: color(chartColors.yellow).alpha(0.5).rgbString(),
+                  borderColor: chartColors.yellow,
                   fill: true,
                   data: []
                }]
             },
             options: {
+               responsive: false,
+               maintainAspectRatio: false,
                title: {
                   display: true,
-                  text: 'Realtime Power Usage'
+                  text: 'Realtime Power Usage',
+                  fontSize: 18
                },
                scales: {
                   xAxes: [{
                      type: 'realtime',
-                     distribution: 'series',
+                     distribution: 'linear',
                      realtime: {
                         duration: 120000,
                         refresh: 4000,
@@ -72,12 +87,15 @@
                      time: {
                         unit: 'second',
                         displayFormats: {
-                           second: 'ss',
+                           second: ' ',
                            minute: 'H:mm'
                         }
                      }
                   }],
                   yAxes: [{
+                     ticks: {
+                        suggestedMin: 0
+                     },
                      scaleLabel: {
                         display: false,
                         labelString: 'Power'
@@ -126,20 +144,226 @@
             }
          };
 
-         window.onload = function() {
-            var ctx = document.getElementById('realtimeChart').getContext('2d');
-            Chart.defaults.global.defaultFontSize = 16;
-            Chart.defaults.global.defaultFontColor = '(0,0,0,0.8)';
-            window.realtimeChart = new Chart(ctx, config);
+         var historicalConfig = {
+            type: 'line',
+            data: {
+               datasets: [{
+                  backgroundColor: color(chartColors.green).alpha(0.5).rgbString(),
+                  borderColor: chartColors.green,
+                  borderWidth: 2,
+                  pointRadius: 0,
+                  fill: true,
+                  data: []
+               }]
+            },
+            options: {
+               responsive: false,
+               maintainAspectRatio: false,
+               title: {
+                  display: true,
+                  text: 'Energy Consumption',
+                  fontSize: 18
+               },
+               scales: {
+                  xAxes: [{
+                     type: 'time',
+                     distribution: 'linear',
+                     time: {
+                        displayFormats: {
+                           second: ' ',
+                           minute: 'H:mm'
+                        }
+                     }
+                  }],
+                  yAxes: [{
+                     ticks: {
+                        suggestedMin: 0
+                     },
+                     scaleLabel: {
+                        display: false,
+                        labelString: 'Power'
+                     }
+                  }]
+               },
+               legend: {
+                  display: false
+               },
+               tooltips: {
+                  mode: 'nearest',
+                  intersect: false,
+                  callbacks: {
+                     title: function(tooltipItem, data) {
+                        return Math.round(tooltipItem[0].value) + ' W';
+                     },
+                     label: function(tooltipItem, data) {
+                        var date = moment(tooltipItem.label);
+                        return date.format('H:mm:ss');
+                     }
+                  },
+                  displayColors: false,
+                  backgroundColor: color(chartColors.black).alpha(0.8).rgbString()
+               },
+               hover: {
+                  mode: 'nearest',
+                  intersect: false
+               },
+               plugins: {
+                  streaming: false
+               }
+            }
          };
 
-         var colorNames = Object.keys(chartColors);
+         
+         window.onload = function() {
+            Chart.defaults.global.defaultFontSize = 16;
+            Chart.defaults.global.defaultFontColor = 'rgba(0,0,0,0.8)';
 
+            var realtimeCtx = document.getElementById('realtimeChart').getContext('2d');
+            window.realtimeChart = new Chart(realtimeCtx, realtimeConfig);
+
+            var historicalCtx = document.getElementById('historicalChart').getContext('2d');
+            window.historicalChart = new Chart(historicalCtx, historicalConfig);
+            
+            fetch('http://192.168.137.1/read')
+            .then(response => {
+               return response.json()
+            })
+            .then(data => {
+
+               var newData = new Array();
+               
+               data.readings.forEach(function(reading){
+                  dataPoint = {
+                     x: reading.date,
+                     y: reading.read
+                  };
+                  newData.push(dataPoint);
+               });
+
+               historicalDataset = historicalChart.data.datasets[0];
+               realtimeDataset = realtimeChart.data.datasets[0];
+
+               var currentReading = newData[newData.length-1];
+               annotation = realtimeChart.options.annotation.annotations[0];
+               annotation.value = currentReading.y;
+               annotation.label.content = Math.round(currentReading.y) + ' W';
+               realtimeDataset.data = newData;
+               realtimeChart.update();
+               
+               Object.assign(historicalDataset.data, newData);
+               historicalChart.update();
+               
+               document.getElementById("consumStart").value = 
+                     moment(newData[0].x).format(inputDateFormat);
+               document.getElementById("consumEnd").value = 
+                     moment(currentReading.x).format(inputDateFormat);
+            })
+
+            var colorNames = Object.keys(chartColors);
+
+            document.getElementById('consumCalc').addEventListener('click', evt => {
+               var startTime = document.getElementById('consumStart').value;
+               var endTime = document.getElementById('consumEnd').value;
+
+               startTime = moment(startTime, inputDateFormat).format(serverDateFormat);
+               endTime = moment(endTime, inputDateFormat).format(serverDateFormat);
+
+               fetch(`http://192.168.137.1/read?start=${startTime}&end=${endTime}`)
+               .then(response => {
+                  return response.json()
+               })
+               .then(data => {
+
+                  var newData = new Array();
+                  
+                  data.readings.forEach(function(reading){
+                     dataPoint = {
+                        x: reading.date,
+                        y: reading.read
+                     };
+                     newData.push(dataPoint);
+                  });
+
+                  historicalDataset = historicalChart.data.datasets[0];
+                  historicalDataset.data = newData;
+                  historicalChart.update();
+               })
+            });
+
+            /*//https://stackoverflow.com/a/46282218
+            var canvas = document.getElementById('historicalChart');
+
+            var overlay = document.getElementById('overlay');
+            overlay.width = canvas.width;
+            overlay.height = canvas.height;
+            
+            var selectionContext = overlay.getContext('2d');
+            var selectionRect = {
+               w: 0,
+               startX: 0,
+               startY: 0
+            };
+            var startIndex = 0;
+            var drag = false;
+
+            canvas.addEventListener('pointerdown', evt => {
+               const points = historicalChart.getElementsAtEventForMode(evt, 'index', {
+                  intersect: false
+               });
+               startIndex = points[0]._index;
+               const rect = canvas.getBoundingClientRect();
+               selectionRect.startX = evt.clientX - rect.left;
+               selectionRect.startY = historicalChart.chartArea.top;
+               drag = true;
+               // save points[0]._index for filtering
+            });
+
+            canvas.addEventListener('pointermove', evt => {
+               const rect = canvas.getBoundingClientRect();
+               if (drag) {
+                  const rect = canvas.getBoundingClientRect();
+                  selectionRect.w = (evt.clientX - rect.left) - selectionRect.startX;
+                  selectionContext.globalAlpha = 0.5;
+                  selectionContext.clearRect(0, 0, canvas.width, canvas.height);
+                  selectionContext.fillRect(selectionRect.startX,
+                     selectionRect.startY,
+                     selectionRect.w,
+                     historicalChart.chartArea.bottom - historicalChart.chartArea.top);
+               } else {
+                  selectionContext.clearRect(0, 0, canvas.width, canvas.height);
+                  var x = evt.clientX - rect.left;
+                  if (x > historicalChart.chartArea.left) {
+                     selectionContext.fillRect(x,
+                     historicalChart.chartArea.top,
+                     1,
+                     historicalChart.chartArea.bottom - historicalChart.chartArea.top);
+                  }
+               }
+            });
+
+            canvas.addEventListener('pointerup', evt => {
+               const points = historicalChart.getElementsAtEventForMode(evt, 'index', {
+                  intersect: false
+               });
+               drag = false;
+               start = historicalChart.data.datasets[0].data[startIndex].x;
+               end = historicalChart.data.datasets[0].data[points[0]._index].x;
+            });*/
+         };
       </script>
    </head>
-   <body>
-      <div>
-         <canvas id="realtimeChart"></canvas>
-      </div>
+   <body style="font-family: Arial, Helvetica, sans-serif;">
+      <div style="margin:auto;width:750px!important;">
+         <canvas id="realtimeChart" style="height:350px!important;"></canvas>
+         <!--<canvas id="overlay" style="position:absolute;pointer-events:none;"></canvas>-->
+         <canvas id="historicalChart" style="height:350px!important;"></canvas>
+         <div style="text-align: center;">
+            <input id="consumCalc" type="button" style="font-family: Arial, Helvetica, sans-serif; font-size: medium;" value="Calculate"/>
+            <span><b>From</b></span>
+            <input id="consumStart" type="datetime-local" style="font-family: Arial, Helvetica, sans-serif; font-size: medium;"/>
+            <span><b>To</b></span>
+            <input id="consumEnd" type="datetime-local" style="font-family: Arial, Helvetica, sans-serif; font-size: medium;"/>
+         </div>
+      </div>         
    </body>
 </html>

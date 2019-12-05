@@ -26,11 +26,31 @@ def upload():
 def read_now():
    now = readings[-1]
    now_date = datetime.fromtimestamp(now[1]).isoformat()
-   return '{{"reading":{0},"date":"{1}"}}'.format(now[0], now_date)
+   return '{{"read":{0},"date":"{1}"}}'.format(now[0], now_date)
 
-@app.route('/read/all')
+@app.route('/read')
 def read_all():
-   return str(readings)
+   start = request.args.get('start')
+   end = request.args.get('end')
+   start_time = readings[0][1]
+   end_time = math.inf
+   if start:
+      start_time = datetime.strptime(start, date_format).timestamp()
+   if end:
+      end_time = datetime.strptime(end, date_format).timestamp()
+   interval = filter(lambda reading: start_time <= reading[1] <= end_time, readings)
+   interval = list(interval)
+   iter_reads = iter(interval)
+   json_str = '{"readings":['
+   if interval:
+      now_date = datetime.fromtimestamp(interval[0][1]).isoformat()
+      json_str += '{{"read":{0},"date":"{1}"}}'.format(interval[0][0], now_date)
+      next(iter_reads)
+      for reading in interval:
+         now_date = datetime.fromtimestamp(reading[1]).isoformat()
+         json_str += ',{{"read":{0},"date":"{1}"}}'.format(reading[0], now_date)
+   json_str += ']}'
+   return json_str
 
 @app.route('/analytics/consumption')
 def analytics_consumption():
