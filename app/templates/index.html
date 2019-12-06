@@ -46,7 +46,7 @@
                   y: data.read
                };
 
-               if (!dataset.data.filter(read => (read.y === dataPoint.y)).length) {
+               if (!dataset.data.filter(read => (read.x === dataPoint.x)).length) {
                   dataset.data.push(dataPoint);
                   annotation = realtimeChart.options.annotation.annotations[0];
                   annotation.value = dataPoint.y;
@@ -267,14 +267,10 @@
                   xAxes: [{
                      type: 'time',
                      distribution: 'linear',
-                     ticks: {
-                        stepSize: 30
-                     },
                      time: {
-                        unit: 'second',
                         displayFormats: {
-                           millisecond: 'SS',
-                           second: 'ss',
+                           millisecond: ' ',
+                           second: ' ',
                            minute: 'H:mm'
                         }
                      },

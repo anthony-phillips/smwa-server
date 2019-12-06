@@ -18,8 +18,8 @@ def index():
 
 @app.route('/upload')
 def upload():
-   reading = request.args.get('reading')
-   readings.append([float(reading), datetime.now().timestamp()])
+   reading = float(request.args.get('reading'))
+   readings.append([reading if reading>375 else 0, datetime.now().timestamp()])
    return ""
 
 @app.route('/read/now')
@@ -84,3 +84,8 @@ def analytics_prediction():
       return m * t + b
    dx = end_time-start_time
    return str((P(start_time)*dx - (P(start_time)-P(end_time))*dx / 2)/3600)
+
+
+@app.route('/demo')
+def demo():
+   return render_template('demo.html')
