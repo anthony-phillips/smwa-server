@@ -19,7 +19,7 @@ def index():
 @app.route('/upload')
 def upload():
    reading = float(request.args.get('reading'))
-   readings.append([reading if reading>375 else 0, datetime.now().timestamp()])
+   readings.append([reading, datetime.now().timestamp()])
    return ""
 
 @app.route('/read/now')
